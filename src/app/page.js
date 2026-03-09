@@ -2,9 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 
-// ─── LOGICA CORE ─────────────────────────────────────────────────────────────
-// ANCORA: 9 marzo 2026 = giorno 5 → giorno 1 del ciclo = 5 marzo 2026
-// Ciclo: [diurno1, diurno2, notte-sera, notte-mattino, riposo, riposo]
+// LOGICA CORE 
 
 function dateKey(date) {
   const y = date.getFullYear();
@@ -35,7 +33,7 @@ export function getShiftForDate(date) {
   }
 }
 
-// ─── HELPERS TEMPO ────────────────────────────────────────────────────────────
+// HELPERS TEMPO 
 
 function timeToMin(t) {
   if (!t) return 0;
@@ -78,7 +76,7 @@ function formatHM(totalMinutes) {
   return `${h}h ${String(m).padStart(2, "0")}m`;
 }
 
-// ─── COSTANTI UI ─────────────────────────────────────────────────────────────
+// COSTANTI
 
 const MONTHS_IT = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
   "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
@@ -102,7 +100,7 @@ function cycleLabel(shift) {
   switch (shift.cycleDay) {
     case 1: return "1° giorno";
     case 2: return "2° giorno";
-    case 3: return "Sottonotturna";
+    case 3: return "Notte";
     case 4: return "Smonto";
     case 5: return "Recupero";
     case 6: return "Riposo";
@@ -110,7 +108,7 @@ function cycleLabel(shift) {
   }
 }
 
-// ─── PANNELLO MODIFICA GIORNO ─────────────────────────────────────────────────
+// PANNELLO MODIFICA GIORNO
 
 function DayEditPanel({ selectedKey, panelDate, shift, overtime, isFerie, onSaveOvertime, onRemoveOvertime, onAddFeria, onRemoveFeria, onClose }) {
   const existing = overtime[selectedKey];
@@ -259,7 +257,7 @@ function DayEditPanel({ selectedKey, panelDate, shift, overtime, isFerie, onSave
   );
 }
 
-// ─── COMPONENTE PRINCIPALE ────────────────────────────────────────────────────
+// COMPONENTE PRINCIPALE
 
 export default function MuseoOrari() {
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
@@ -292,7 +290,7 @@ export default function MuseoOrari() {
   const [selectedKey, setSelectedKey] = useState(null);
   const [panelDate, setPanelDate] = useState(null);
 
-  // ── handlers straordinari ──
+  // handlers straordinari
   const handleSaveOvertime = useCallback((key, data) => {
     setOvertimeByUser(prev => ({
       ...prev,
@@ -308,7 +306,7 @@ export default function MuseoOrari() {
     });
   }, [user]);
 
-  // ── handlers ferie ──
+  // handlers ferie
   const handleAddFeria = useCallback((key) => {
     setFerieByUser(prev => ({
       ...prev,
@@ -330,7 +328,7 @@ export default function MuseoOrari() {
     setPanelDate(dateObj);
   }, []);
 
-  // ── calendario ──
+  // calendario
   const viewDate = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
   const viewYear = viewDate.getFullYear();
   const viewMonth = viewDate.getMonth();
@@ -341,7 +339,7 @@ export default function MuseoOrari() {
   for (let i = 0; i < padding; i++) calDays.push(null);
   for (let d = 1; d <= daysInMonth; d++) calDays.push(d);
 
-  // ── prossimo turno ──
+  // prossimo turno
   const nextWork = useMemo(() => {
     for (let i = 1; i <= 14; i++) {
       const d = new Date(today); d.setDate(d.getDate() + i);
@@ -351,7 +349,7 @@ export default function MuseoOrari() {
     return null;
   }, [today]);
 
-  // ── scroll infinito ──
+  // scroll infinito
   const [listCount, setListCount] = useState(60);
   const sentinelRef = useRef(null);
   useEffect(() => {
@@ -371,7 +369,7 @@ export default function MuseoOrari() {
     return { date: d, ...getShiftForDate(d) };
   }), [today, listCount]);
 
-  // ── ore straordinario ──
+  // ore straordinario
   const monthOvertimeMinutes = useMemo(() => {
     let total = 0;
     for (let d = 1; d <= daysInMonth; d++) {
@@ -398,7 +396,7 @@ export default function MuseoOrari() {
     return total;
   }, [overtime, today]);
 
-  // ── helpers render ──
+  // helpers render
   function effectiveShift(dateObj) {
     const key = dateKey(dateObj);
     const base = getShiftForDate(dateObj);
@@ -415,13 +413,12 @@ export default function MuseoOrari() {
     return shift.type;
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: "'Georgia','Times New Roman',serif" }}
       className="min-h-screen bg-stone-100 p-4 md:p-8">
       <div className="mx-auto space-y-5">
 
-        {/* ── HEADER ── */}
+        {/*HEADER*/}
         <div className="text-center pt-2">
           <h1 style={{ letterSpacing: "0.18em" }}
             className="text-2xl md:text-3xl font-bold text-stone-800 uppercase">
@@ -440,7 +437,7 @@ export default function MuseoOrari() {
           </div>
         </div>
 
-        {/* ── CARD OGGI ── */}
+        {/*CARD OGGI*/}
         <div className={`rounded-2xl border-2 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm ${todayMeta.bg} ${todayMeta.border}`}>
           <div className="text-4xl leading-none">{todayMeta.icon}</div>
           <div className="flex-1">
@@ -464,7 +461,7 @@ export default function MuseoOrari() {
           </div>
         </div>
 
-        {/* ── BARRA STRAORDINARI ── */}
+        {/*BARRA STRAORDINARI*/}
         <div className="bg-white rounded-2xl border-2 border-red-200 shadow-sm overflow-hidden">
           <button
             type="button"
@@ -539,7 +536,7 @@ export default function MuseoOrari() {
           )}
         </div>
 
-        {/* ── PANNELLO MODIFICA GIORNO ── */}
+        {/*PANNELLO MODIFICA GIORNO*/}
         {selectedKey && panelDate && (
           <DayEditPanel
             selectedKey={selectedKey}
@@ -555,7 +552,7 @@ export default function MuseoOrari() {
           />
         )}
 
-        {/* ── TABS ── */}
+        {/*TABS*/}
         <div className="flex gap-2">
           {[["month", "📅 Calendario"], ["list", "📋 Elenco dei giorni"]].map(([m, l]) => (
             <button type="button" key={m} onClick={() => setViewMode(m)}
@@ -566,7 +563,7 @@ export default function MuseoOrari() {
           ))}
         </div>
 
-        {/* ── CALENDARIO ── */}
+        {/*CALENDARIO*/}
         {viewMode === "month" && (
           <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100 relative">
@@ -717,7 +714,7 @@ export default function MuseoOrari() {
           </div>
         )}
 
-        {/* ── ELENCO GIORNI (scroll infinito) ── */}
+        {/*ELENCO GIORNI (scroll infinito) */}
         {viewMode === "list" && (
           <div className="space-y-1.5">
             {listItems.map((s, i) => {
@@ -769,7 +766,7 @@ export default function MuseoOrari() {
                               {eff.start} → {eff.end}
                               {!hasOT && s.type === "diurno" && s.end === "18:00" ? "" : ""}
                             </span>
-                            : "Riposone"}
+                            : "Riposo"}
                       </div>
                     </div>
                     {hasOT && !isFeria && (
