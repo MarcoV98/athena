@@ -678,7 +678,7 @@ export default function MuseoOrari() {
                           {isFeria && <span className="ml-1">🌴</span>}
                           {hasOT && !isFeria && <span className="ml-1 text-red-400">⚡</span>}
                         </div>
-                        <div className={`text-[8px] leading-tight mt-0.5 ${isFeria ? "text-emerald-500" : m.text} opacity-70`}>
+                        <div className={`text-[12px] font-bold leading-tight mt-0.5 ${isFeria ? "text-emerald-500" : m.text} opacity-70`}>
                           {cycleLabel(base)}
                         </div>
                       </div>
@@ -704,7 +704,6 @@ export default function MuseoOrari() {
                             +{formatHM(calcOvertimeMinutes(base, overtime[key]))}
                           </div>
                         )}
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${isFeria ? "bg-emerald-400" : hasOT ? "bg-red-400" : m.dot}`} />
                       </div>
                     </div>
                   </div>
