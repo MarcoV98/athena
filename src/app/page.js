@@ -678,7 +678,7 @@ export default function MuseoOrari() {
                           {isFeria && <span className="ml-1">🌴</span>}
                           {hasOT && !isFeria && <span className="ml-1 text-red-400">⚡</span>}
                         </div>
-                        <div className={`text-[12px] sm:text-[9px] font-bold leading-tight mt-0.5 ${isFeria ? "text-emerald-500" : m.text} opacity-70`}>
+                        <div className={`lg:text-[12px] sm:text-[9px] font-bold leading-tight mt-0.5 ${isFeria ? "text-emerald-500" : m.text} opacity-70`}>
                           {cycleLabel(base)}
                         </div>
                       </div>
