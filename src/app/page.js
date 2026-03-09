@@ -98,8 +98,8 @@ function fmt(date) {
 function cycleLabel(shift) {
   if (shift.mondayRest) return "Riposone";
   switch (shift.cycleDay) {
-    case 1: return "1° giorno";
-    case 2: return "2° giorno";
+    case 1: return "Primo";
+    case 2: return "Secondo";
     case 3: return "Notte";
     case 4: return "Smonto";
     case 5: return "Recupero";
