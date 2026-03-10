@@ -45,12 +45,11 @@ function calcOvertimeMinutes(shift, ot) {
   if (!ot) return 0;
   let mins = 0;
   if (shift.type === "riposo") {
-    if (ot.fullDay) {
-      const s = timeToMin(ot.start || "08:00");
-      const e = timeToMin(ot.end || "18:30");
-      mins = e - s;
-      if (mins < 0) mins += 1440;
-    }
+    const s = timeToMin(ot.start || "08:00");
+    const e = timeToMin(ot.end || "18:30");
+    mins = e - s;
+    if (mins < 0) mins += 1440;
+    mins = Math.max(0, mins - 60); // sottrai pausa pranzo
     return mins;
   }
   if (ot.start && ot.start !== shift.start) {
@@ -84,10 +83,10 @@ const DAYS_LONG = ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", 
 
 const META = {
   diurno: { label: "Diurno", icon: "☀️", bg: "bg-amber-50", border: "border-amber-300", text: "text-amber-800", badge: "bg-amber-100 text-amber-700", dot: "bg-amber-400", calBg: "#fffbeb" },
-  notte1: { label: "Notte (sera)", icon: "🌙", bg: "bg-indigo-50", border: "border-indigo-300", text: "text-indigo-800", badge: "bg-indigo-100 text-indigo-700", dot: "bg-indigo-400", calBg: "#eef2ff" },
-  notte2: { label: "Notte (mattino)", icon: "🌙", bg: "bg-violet-50", border: "border-violet-300", text: "text-violet-800", badge: "bg-violet-100 text-violet-700", dot: "bg-violet-500", calBg: "#f5f3ff" },
+  notte1: { label: "Notte", icon: "🌙", bg: "bg-indigo-50", border: "border-indigo-300", text: "text-indigo-800", badge: "bg-indigo-100 text-indigo-700", dot: "bg-indigo-400", calBg: "#eef2ff" },
+  notte2: { label: "Notte", icon: "🌙", bg: "bg-violet-50", border: "border-violet-300", text: "text-violet-800", badge: "bg-violet-100 text-violet-700", dot: "bg-violet-500", calBg: "#f5f3ff" },
   riposo: { label: "Riposo", icon: "😴", bg: "bg-slate-50", border: "border-slate-200", text: "text-slate-400", badge: "bg-slate-100 text-slate-400", dot: "bg-slate-300", calBg: "#f8fafc" },
-  mondayRest: { label: "Lunedì libero", icon: "🔵", bg: "bg-sky-50", border: "border-sky-200", text: "text-sky-600", badge: "bg-sky-100 text-sky-600", dot: "bg-sky-300", calBg: "#f0f9ff" },
+  mondayRest: { label: "Riposone", icon: "😴", bg: "bg-sky-50", border: "border-sky-200", text: "text-sky-600", badge: "bg-sky-100 text-sky-600", dot: "bg-sky-300", calBg: "#f0f9ff" },
   ferie: { label: "Ferie", icon: "🌴", bg: "bg-emerald-50", border: "border-emerald-300", text: "text-emerald-700", badge: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-400", calBg: "#ecfdf5" },
 };
 
@@ -102,8 +101,8 @@ function cycleLabel(shift) {
     case 2: return "Secondo";
     case 3: return "Notte";
     case 4: return "Smonto";
-    case 5: return "Recupero";
-    case 6: return "Riposo";
+    case 5: return "";
+    case 6: return "";
     default: return "";
   }
 }
@@ -115,7 +114,6 @@ function DayEditPanel({ selectedKey, panelDate, shift, overtime, isFerie, onSave
   const isRiposo = shift.type === "riposo" && !shift.mondayRest;
 
   const [tab, setTab] = useState(isFerie ? "ferie" : "straordinario");
-  const [fullDay, setFullDay] = useState(existing?.fullDay ?? false);
   const [startVal, setStartVal] = useState(existing?.start ?? shift.start ?? "08:00");
   const [endVal, setEndVal] = useState(existing?.end ?? shift.end ?? "18:30");
 
@@ -128,14 +126,15 @@ function DayEditPanel({ selectedKey, panelDate, shift, overtime, isFerie, onSave
       onAddFeria(selectedKey);
     } else if (tab === "straordinario") {
       if (isFerie) onRemoveFeria(selectedKey);
-      if (isRiposo && fullDay) {
-        onSaveOvertime(selectedKey, { fullDay: true, start: startVal, end: endVal });
-      } else if (!isRiposo) {
-        onSaveOvertime(selectedKey, { start: startVal, end: endVal });
-      }
+      onSaveOvertime(selectedKey, { start: startVal, end: endVal });
     }
     onClose();
   };
+
+  // preview minuti straordinario per riposo
+  const previewMins = isRiposo
+    ? Math.max(0, (timeToMin(endVal) - timeToMin(startVal)) - 60)
+    : 0;
 
   return (
     <div className="bg-white border-2 border-stone-300 rounded-2xl shadow-xl overflow-hidden">
@@ -174,83 +173,48 @@ function DayEditPanel({ selectedKey, panelDate, shift, overtime, isFerie, onSave
 
       {/* Contenuto tab */}
       <div className="p-5">
-        {tab === "ferie" && (
-          <div className="flex items-start gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-200">
-            <span className="text-xl">🌴</span>
-            <div>
-              <p className="text-sm font-semibold text-emerald-800">Giorno di ferie</p>
-              <p className="text-xs text-emerald-600">
-                {existing && <span className="block mt-1 font-medium">⚠ Lo straordinario esistente verrà rimosso.</span>}
-              </p>
-            </div>
-          </div>
-        )}
-
         {tab === "straordinario" && (
           <div className="space-y-3">
-            {isRiposo ? (
-              <>
-                <p className="text-xs text-stone-500">Giorno di riposo — aggiungi turno straordinario completo:</p>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={fullDay} onChange={e => setFullDay(e.target.checked)}
-                    className="w-4 h-4 rounded accent-red-500" />
-                  <span className="text-sm text-stone-700 font-medium">Turno straordinario completo</span>
-                </label>
-                {fullDay && (
-                  <div className="flex gap-3">
-                    <label className="flex-1">
-                      <span className="text-xs text-stone-500 uppercase tracking-wide">Inizio</span>
-                      <input type="time" value={startVal} onChange={e => setStartVal(e.target.value)}
-                        className="block w-full mt-1 border border-stone-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-300" />
-                    </label>
-                    <label className="flex-1">
-                      <span className="text-xs text-stone-500 uppercase tracking-wide">Fine</span>
-                      <input type="time" value={endVal} onChange={e => setEndVal(e.target.value)}
-                        className="block w-full mt-1 border border-stone-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-300" />
-                    </label>
-                  </div>
+              <p className="text-xs text-stone-500">
+                Orario base: <span className="font-mono text-stone-700">{baseStart} - {baseEnd}</span>
+              </p>
+
+            <div className="flex gap-3">
+              <label className="flex-1">
+                <span className="text-xs text-stone-500 uppercase tracking-wide">Inizio</span>
+                <input type="time" value={startVal} onChange={e => setStartVal(e.target.value)}
+                  className="block w-full mt-1 border border-stone-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-300" />
+                {!isRiposo && startVal < baseStart && (
+                  <span className="text-xs lg:text-s text-red-500 mt-0.5 block">+{formatHM(timeToMin(baseStart) - timeToMin(startVal))}</span>
                 )}
-              </>
-            ) : (
-              <>
-                <p className="text-xs text-stone-500">
-                  Orario base: <span className="font-mono text-stone-700">{baseStart} → {baseEnd}</span>
-                </p>
-                <div className="flex gap-3">
-                  <label className="flex-1">
-                    <span className="text-xs text-stone-500 uppercase tracking-wide">Inizio</span>
-                    <input type="time" value={startVal} onChange={e => setStartVal(e.target.value)}
-                      className="block w-full mt-1 border border-stone-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-300" />
-                    {startVal < baseStart && (
-                      <span className="text-xs text-red-500 mt-0.5 block">+{formatHM(timeToMin(baseStart) - timeToMin(startVal))} anticipato</span>
-                    )}
-                  </label>
-                  <label className="flex-1">
-                    <span className="text-xs text-stone-500 uppercase tracking-wide">Fine</span>
-                    <input type="time" value={endVal} onChange={e => setEndVal(e.target.value)}
-                      className="block w-full mt-1 border border-stone-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-300" />
-                    {endVal > baseEnd && (
-                      <span className="text-xs text-red-500 mt-0.5 block">+{formatHM(timeToMin(endVal) - timeToMin(baseEnd))} posticipato</span>
-                    )}
-                  </label>
-                </div>
-              </>
+              </label>
+              <label className="flex-1">
+                <span className="text-xs text-stone-500 uppercase tracking-wide">Fine</span>
+                <input type="time" value={endVal} onChange={e => setEndVal(e.target.value)}
+                  className="block w-full mt-1 border border-stone-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-300" />
+                {!isRiposo && endVal > baseEnd && (
+                  <span className="text-xs lg:text-s text-red-500 mt-0.5 block">+{formatHM(timeToMin(endVal) - timeToMin(baseEnd))}</span>
+                )}
+              </label>
+            </div>
+            {isRiposo && previewMins > 0 && (
+              <p className="text-xs text-red-600 font-mono font-bold">
+                Straordinario: {formatHM(previewMins)}
+              </p>
             )}
           </div>
         )}
-
       </div>
 
       {/* Footer */}
-      <div className="px-5 pb-5">
+      <div className="px-5 pb-5 lg:flex lg:justify-center">
         <button
           type="button"
           onClick={handleSave}
-          disabled={tab === "straordinario" && isRiposo && !fullDay}
-          className={`w-full text-sm font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed
+          className={`w-full lg:w-auto lg:p-3 text-sm font-semibold py-2.5 rounded-xl transition-colors
             ${tab === "ferie" ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "bg-red-500 hover:bg-red-600 text-white"}`}
         >
-          {tab === "ferie" ? "🌴 Segna come ferie" : "⚡ Salva straordinario"}
+          {tab === "ferie" ? "🌴 Segna come ferie" : "Salva straordinario"}
         </button>
       </div>
     </div>
@@ -402,7 +366,7 @@ export default function MuseoOrari() {
     const base = getShiftForDate(dateObj);
     const ot = overtime[key];
     if (!ot) return { ...base, hasOT: false };
-    if (base.type === "riposo" && ot.fullDay)
+    if (base.type === "riposo" && ot.start)
       return { ...base, isOTDay: true, start: ot.start, end: ot.end, hasOT: true };
     return { ...base, start: ot.start ?? base.start, end: ot.end ?? base.end, hasOT: true };
   }
@@ -428,8 +392,8 @@ export default function MuseoOrari() {
             {["marco", "giada"].map(u => (
               <button key={u} type="button" onClick={() => switchUser(u)}
                 className={`px-5 py-2 rounded-full text-sm font-semibold transition-all capitalize tracking-wide ${user === u
-                    ? "bg-stone-800 text-white shadow-md"
-                    : "bg-white text-stone-500 border border-stone-200 hover:border-stone-400 hover:text-stone-700"
+                  ? "bg-stone-800 text-white shadow-md"
+                  : "bg-white text-stone-500 border border-stone-200 hover:border-stone-400 hover:text-stone-700"
                   }`}>
                 {u === user ? "● " : ""}{u.charAt(0).toUpperCase() + u.slice(1)}
               </button>
@@ -439,20 +403,17 @@ export default function MuseoOrari() {
 
         {/*CARD OGGI*/}
         <div className={`rounded-2xl border-2 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm ${todayMeta.bg} ${todayMeta.border}`}>
-          <div className="text-4xl leading-none">{todayMeta.icon}</div>
           <div className="flex-1">
-            <div className="text-xs uppercase tracking-widest text-stone-400 mb-0.5">Oggi · {fmt(today)}</div>
+            <div className="text-xs uppercase tracking-widest text-stone-400 mb-0.5">Oggi, {fmt(today)}</div>
             <div className={`text-xl font-bold ${todayMeta.text}`}>{todayMeta.label}</div>
             {todayShift.type !== "riposo" ? (
-              <div className="text-stone-600 text-sm mt-0.5 flex flex-wrap items-center gap-2">
-                <span className="font-mono">{todayShift.start} → {todayShift.end}</span>
-                {todayShift.type === "diurno" && todayShift.end === "18:00" &&
-                  <span className="text-xs italic text-stone-400">(uscita anticipata)</span>}
+              <div className="text-sm mt-0.5 flex flex-wrap items-center gap-2">
+                <span className="font-mono">{todayShift.start} - {todayShift.end}</span>
               </div>
             ) : nextWork && (
               <div className="text-stone-500 text-sm mt-0.5">
                 Prossimo turno: <strong>{fmt(nextWork.date)}</strong>
-                <span className="font-mono text-xs ml-2">{nextWork.start}→{nextWork.end}</span>
+                <span className="font-mono text-xs ml-2">{nextWork.start}-{nextWork.end}</span>
               </div>
             )}
           </div>
@@ -469,7 +430,6 @@ export default function MuseoOrari() {
             className="w-full flex items-center justify-between px-5 py-3 bg-red-50 hover:bg-red-100/60 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <span className="text-lg">⚡</span>
               <div className="text-left">
                 <h2 className="text-sm font-bold text-red-800 uppercase tracking-wide">
                   Straordinari
@@ -478,15 +438,15 @@ export default function MuseoOrari() {
             </div>
             <div className="flex items-center gap-3">
               <div className="flex gap-3 text-right">
-                <div className="text-center">
-                  <div className="text-xs text-stone-400 uppercase tracking-wide">Questo mese</div>
+                {monthOffset === 0 && <div className="text-center">
+                  <div className="text-xs uppercase tracking-wide">Questo mese</div>
                   <div className={`text-base font-bold font-mono ${currentMonthOvertimeMinutes > 0 ? "text-red-600" : "text-stone-400"}`}>
                     {formatHM(currentMonthOvertimeMinutes)}
                   </div>
-                </div>
+                </div>}
                 {monthOffset !== 0 && (
-                  <div className="text-center border-l border-red-100 pl-3">
-                    <div className="text-xs text-stone-400 uppercase tracking-wide">{MONTHS_IT[viewMonth]}</div>
+                  <div className="text-center">
+                    <div className="text-xs uppercase tracking-wide">{MONTHS_IT[viewMonth]}</div>
                     <div className={`text-base font-bold font-mono ${monthOvertimeMinutes > 0 ? "text-red-600" : "text-stone-400"}`}>
                       {formatHM(monthOvertimeMinutes)}
                     </div>
@@ -514,9 +474,9 @@ export default function MuseoOrari() {
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-semibold text-stone-700">{fmt(d)}</div>
                         <div className="text-xs font-mono text-stone-500">
-                          {isRip && ot.fullDay
-                            ? `Turno straord. ${ot.start}→${ot.end}`
-                            : `${ot.start ?? shift.start} → ${ot.end ?? shift.end}`}
+                          {isRip
+                            ? `Turno straord. ${ot.start}-${ot.end}`
+                            : `${ot.start ?? shift.start} - ${ot.end ?? shift.end}`}
                         </div>
                       </div>
                       <div className="text-sm font-bold font-mono text-red-600 shrink-0">+{formatHM(mins)}</div>
@@ -554,11 +514,11 @@ export default function MuseoOrari() {
 
         {/*TABS*/}
         <div className="flex gap-2">
-          {[["month", "📅 Calendario"], ["list", "📋 Elenco dei giorni"]].map(([m, l]) => (
+          {[["month", "Calendario"], ["list", "Elenco dei giorni"]].map(([m, l]) => (
             <button type="button" key={m} onClick={() => setViewMode(m)}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${viewMode === m
-                  ? "bg-stone-800 text-white shadow"
-                  : "bg-white text-stone-600 border border-stone-200 hover:bg-stone-50"
+                ? "bg-stone-800 text-white shadow"
+                : "bg-white text-stone-600 border border-stone-200 hover:bg-stone-50"
                 }`}>{l}</button>
           ))}
         </div>
@@ -576,14 +536,11 @@ export default function MuseoOrari() {
                   onClick={() => { setPickerOpen(p => !p); setPickerYearPage(viewYear); }}
                   className="group flex items-center gap-1.5 px-3 py-1 rounded-xl hover:bg-stone-100 transition-colors"
                 >
-                  <h2 style={{ letterSpacing: "0.1em" }} className="text-sm font-bold text-stone-800 uppercase group-hover:text-stone-600">
+                  <h2 style={{ letterSpacing: "0.1em" }} className="text-sm lg:text-lg font-bold text-stone-800 uppercase group-hover:text-stone-600">
                     {MONTHS_IT[viewMonth]} {viewYear}
                   </h2>
                   <span className={`text-stone-400 text-xs transition-transform ${pickerOpen ? "rotate-180" : ""}`}>▾</span>
                 </button>
-                {monthOvertimeMinutes > 0 && (
-                  <div className="text-xs text-red-500 font-mono mt-0.5">⚡ {formatHM(monthOvertimeMinutes)} di straordinario</div>
-                )}
               </div>
 
               <button type="button" onClick={() => setMonthOffset(o => o + 1)}
@@ -676,16 +633,15 @@ export default function MuseoOrari() {
                         <div className={`text-xs font-bold ${isToday ? "text-stone-900" : isWE ? "text-rose-400" : "text-stone-500"}`}>
                           {day}
                           {isFeria && <span className="ml-1">🌴</span>}
-                          {hasOT && !isFeria && <span className="ml-1 text-red-400">⚡</span>}
                         </div>
-                        <div className={`text-[9px] lg:text-[12px] font-bold leading-tight mt-0.5 ${isFeria ? "text-emerald-500" : m.text} opacity-70`}>
+                        <div className={`text-[9px] lg:text-[14px] font-bold leading-tight mt-0.5 ${isFeria ? "text-emerald-500" : m.text} opacity-70`}>
                           {cycleLabel(base)}
                         </div>
                       </div>
                       {!isFeria && (base.type !== "riposo" || isOTRiposo) && (
                         <div className="leading-snug">
                           {hasOT ? (
-                            <div className="text-[10px] font-mono text-red-600 font-bold leading-snug">
+                            <div className="text-[10px] font-mono text-red-600 leading-snug">
                               <div>{eff.start}</div><div>{eff.end}</div>
                             </div>
                           ) : (
@@ -748,7 +704,7 @@ export default function MuseoOrari() {
                       ${selectedKey === key ? "ring-2 ring-stone-500" : ""}
                     `}>
                     <div className="text-lg w-7 text-center leading-none">
-                      {isFeria ? "🌴" : hasOT ? "⚡" : m.icon}
+                      {isFeria ? "🌴" : m.icon}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className={`text-sm font-semibold flex flex-wrap items-center gap-2 ${isFeria ? "text-emerald-700" : hasOT ? "text-red-800" : m.text}`}>
@@ -759,10 +715,10 @@ export default function MuseoOrari() {
                       </div>
                       <div className="text-xs text-stone-500 mt-0.5">
                         {isFeria
-                          ? <span className="text-emerald-600 italic">Ferie — turnazione invariata</span>
-                          : s.type !== "riposo" || (hasOT && overtime[key]?.fullDay)
+                          ? <span className="text-emerald-600 italic">Ferie</span>
+                          : s.type !== "riposo" || (hasOT && overtime[key]?.start)
                             ? <span className={`font-mono ${hasOT ? "text-red-600 font-bold" : ""}`}>
-                              {eff.start} → {eff.end}
+                              {eff.start} - {eff.end}
                               {!hasOT && s.type === "diurno" && s.end === "18:00" ? "" : ""}
                             </span>
                             : "Riposo"}
