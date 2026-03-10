@@ -1,6 +1,13 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import {
+  loadDati,
+  salvaStaordinario,
+  rimuoviStaordinario,
+  aggiungiFeria,
+  rimuoviFeria,
+} from "./lib/supabase.ts";
 
 // LOGICA CORE 
 
@@ -49,7 +56,7 @@ function calcOvertimeMinutes(shift, ot) {
     const e = timeToMin(ot.end || "18:30");
     mins = e - s;
     if (mins < 0) mins += 1440;
-    mins = Math.max(0, mins - 60); // sottrai pausa pranzo
+    mins = Math.max(0, mins - 60);
     return mins;
   }
   if (ot.start && ot.start !== shift.start) {
@@ -131,14 +138,12 @@ function DayEditPanel({ selectedKey, panelDate, shift, overtime, isFerie, onSave
     onClose();
   };
 
-  // preview minuti straordinario per riposo
   const previewMins = isRiposo
     ? Math.max(0, (timeToMin(endVal) - timeToMin(startVal)) - 60)
     : 0;
 
   return (
     <div className="bg-white border-2 border-stone-300 rounded-2xl shadow-xl overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 bg-stone-50 border-b border-stone-200">
         <div>
           <h3 className="font-bold text-stone-800 text-sm uppercase tracking-wider">✏️ Modifica giorno</h3>
@@ -147,7 +152,6 @@ function DayEditPanel({ selectedKey, panelDate, shift, overtime, isFerie, onSave
         <button onClick={onClose} type="button" className="text-stone-400 hover:text-stone-600 text-xl leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-stone-200 transition-colors">✕</button>
       </div>
 
-      {/* Tabs */}
       <div className="flex border-b border-stone-100">
         {[
           { key: "ferie", icon: "🌴", label: "Ferie" },
@@ -171,21 +175,25 @@ function DayEditPanel({ selectedKey, panelDate, shift, overtime, isFerie, onSave
         ))}
       </div>
 
-      {/* Contenuto tab */}
       <div className="p-5">
         {tab === "straordinario" && (
           <div className="space-y-3">
+            {isRiposo ? (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                ⚠️ Giorno di riposo — verrà sottratta 1h di pausa pranzo
+              </p>
+            ) : (
               <p className="text-xs text-stone-500">
                 Orario base: <span className="font-mono text-stone-700">{baseStart} - {baseEnd}</span>
               </p>
-
+            )}
             <div className="flex gap-3">
               <label className="flex-1">
                 <span className="text-xs text-stone-500 uppercase tracking-wide">Inizio</span>
                 <input type="time" value={startVal} onChange={e => setStartVal(e.target.value)}
                   className="block w-full mt-1 border border-stone-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-300" />
                 {!isRiposo && startVal < baseStart && (
-                  <span className="text-xs lg:text-s text-red-500 mt-0.5 block">+{formatHM(timeToMin(baseStart) - timeToMin(startVal))}</span>
+                  <span className="text-xs text-red-500 mt-0.5 block">+{formatHM(timeToMin(baseStart) - timeToMin(startVal))}</span>
                 )}
               </label>
               <label className="flex-1">
@@ -193,7 +201,7 @@ function DayEditPanel({ selectedKey, panelDate, shift, overtime, isFerie, onSave
                 <input type="time" value={endVal} onChange={e => setEndVal(e.target.value)}
                   className="block w-full mt-1 border border-stone-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-300" />
                 {!isRiposo && endVal > baseEnd && (
-                  <span className="text-xs lg:text-s text-red-500 mt-0.5 block">+{formatHM(timeToMin(endVal) - timeToMin(baseEnd))}</span>
+                  <span className="text-xs text-red-500 mt-0.5 block">+{formatHM(timeToMin(endVal) - timeToMin(baseEnd))}</span>
                 )}
               </label>
             </div>
@@ -206,16 +214,31 @@ function DayEditPanel({ selectedKey, panelDate, shift, overtime, isFerie, onSave
         )}
       </div>
 
-      {/* Footer */}
-      <div className="px-5 pb-5 lg:flex lg:justify-center">
+      <div className="px-5 pb-5 space-y-2">
         <button
           type="button"
           onClick={handleSave}
-          className={`w-full lg:w-auto lg:p-3 text-sm font-semibold py-2.5 rounded-xl transition-colors
+          className={`w-full text-sm font-semibold py-2.5 rounded-xl transition-colors
             ${tab === "ferie" ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "bg-red-500 hover:bg-red-600 text-white"}`}
         >
-          {tab === "ferie" ? "🌴 Segna come ferie" : "Salva straordinario"}
+          {tab === "ferie" ? "Segna come ferie" : "Salva straordinario"}
         </button>
+        {tab === "ferie" && isFerie && (
+          <button
+            type="button"
+            onClick={() => { onRemoveFeria(selectedKey); onClose(); }}
+            className="w-full text-sm font-semibold py-2.5 rounded-xl border border-emerald-300 text-emerald-600 hover:bg-emerald-50 transition-colors">
+            Elimina ferie
+          </button>
+        )}
+        {tab === "straordinario" && existing && (
+          <button
+            type="button"
+            onClick={() => { onRemoveOvertime(selectedKey); onClose(); }}
+            className="w-full text-sm font-semibold py-2.5 rounded-xl border border-red-300 text-red-500 hover:bg-red-50 transition-colors">
+            Elimina straordinario
+          </button>
+        )}
       </div>
     </div>
   );
@@ -235,17 +258,12 @@ export default function MuseoOrari() {
   const [pickerYearPage, setPickerYearPage] = useState(today.getFullYear());
   const [overtimeOpen, setOvertimeOpen] = useState(false);
 
-  // Utente corrente
-  const [user, setUser] = useState("marco");
-  const switchUser = (u) => {
-    setUser(u);
-    setSelectedKey(null);
-    setPanelDate(null);
-  };
+  // Stato di caricamento
+  const [loading, setLoading] = useState(true);
 
-  // Straordinari per utente: { marco: { "YYYY-MM-DD": {...} }, giada: {...} }
+  const [user, setUser] = useState("marco");
+
   const [overtimeByUser, setOvertimeByUser] = useState({ marco: {}, giada: {} });
-  // Ferie per utente:     { marco: Set<string>, giada: Set<string> }
   const [ferieByUser, setFerieByUser] = useState({ marco: new Set(), giada: new Set() });
 
   const overtime = overtimeByUser[user];
@@ -254,37 +272,76 @@ export default function MuseoOrari() {
   const [selectedKey, setSelectedKey] = useState(null);
   const [panelDate, setPanelDate] = useState(null);
 
-  // handlers straordinari
-  const handleSaveOvertime = useCallback((key, data) => {
+  // ─── CARICAMENTO DATI DA SUPABASE ────────────────────────────────────────
+
+  useEffect(() => {
+    setLoading(true);
+    loadDati(user).then(({ overtimeMap, ferieSet }) => {
+      setOvertimeByUser(prev => ({ ...prev, [user]: overtimeMap }));
+      setFerieByUser(prev => ({ ...prev, [user]: ferieSet }));
+      setLoading(false);
+    });
+  }, [user]);
+
+  // ─── HANDLERS STRAORDINARI ───────────────────────────────────────────────
+
+  const handleSaveOvertime = useCallback(async (key, data) => {
+    // Aggiorna UI subito (optimistic update)
     setOvertimeByUser(prev => ({
       ...prev,
       [user]: { ...prev[user], [key]: data },
     }));
+    // Persisti su Supabase
+    await salvaStaordinario(user, key, data.start, data.end);
   }, [user]);
 
-  const handleRemoveOvertime = useCallback((key) => {
+  const handleRemoveOvertime = useCallback(async (key) => {
     setOvertimeByUser(prev => {
       const next = { ...prev[user] };
       delete next[key];
       return { ...prev, [user]: next };
     });
+    await rimuoviStaordinario(user, key);
   }, [user]);
 
-  // handlers ferie
-  const handleAddFeria = useCallback((key) => {
+  const handleClearAllOvertime = useCallback(async () => {
+    const keys = Object.keys(overtimeByUser[user]);
+    setOvertimeByUser(prev => ({ ...prev, [user]: {} }));
+    await Promise.all(keys.map(key => rimuoviStaordinario(user, key)));
+  }, [user, overtimeByUser]);
+
+  // ─── HANDLERS FERIE ──────────────────────────────────────────────────────
+
+  const handleAddFeria = useCallback(async (key) => {
     setFerieByUser(prev => ({
       ...prev,
       [user]: new Set([...prev[user], key]),
     }));
+    await aggiungiFeria(user, key);
   }, [user]);
 
-  const handleRemoveFeria = useCallback((key) => {
+  const handleRemoveFeria = useCallback(async (key) => {
     setFerieByUser(prev => {
       const next = new Set(prev[user]);
       next.delete(key);
       return { ...prev, [user]: next };
     });
+    await rimuoviFeria(user, key);
   }, [user]);
+
+  const handleClearAllFerie = useCallback(async () => {
+    const keys = [...ferieByUser[user]];
+    setFerieByUser(prev => ({ ...prev, [user]: new Set() }));
+    await Promise.all(keys.map(key => rimuoviFeria(user, key)));
+  }, [user, ferieByUser]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const switchUser = (u) => {
+    setUser(u);
+    setSelectedKey(null);
+    setPanelDate(null);
+  };
 
   const closePanel = useCallback(() => { setSelectedKey(null); setPanelDate(null); }, []);
   const handleDayClick = useCallback((dateObj) => {
@@ -292,7 +349,6 @@ export default function MuseoOrari() {
     setPanelDate(dateObj);
   }, []);
 
-  // calendario
   const viewDate = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
   const viewYear = viewDate.getFullYear();
   const viewMonth = viewDate.getMonth();
@@ -303,7 +359,6 @@ export default function MuseoOrari() {
   for (let i = 0; i < padding; i++) calDays.push(null);
   for (let d = 1; d <= daysInMonth; d++) calDays.push(d);
 
-  // prossimo turno
   const nextWork = useMemo(() => {
     for (let i = 1; i <= 14; i++) {
       const d = new Date(today); d.setDate(d.getDate() + i);
@@ -313,7 +368,6 @@ export default function MuseoOrari() {
     return null;
   }, [today]);
 
-  // scroll infinito
   const [listCount, setListCount] = useState(60);
   const sentinelRef = useRef(null);
   useEffect(() => {
@@ -333,7 +387,6 @@ export default function MuseoOrari() {
     return { date: d, ...getShiftForDate(d) };
   }), [today, listCount]);
 
-  // ore straordinario
   const monthOvertimeMinutes = useMemo(() => {
     let total = 0;
     for (let d = 1; d <= daysInMonth; d++) {
@@ -360,7 +413,6 @@ export default function MuseoOrari() {
     return total;
   }, [overtime, today]);
 
-  // helpers render
   function effectiveShift(dateObj) {
     const key = dateKey(dateObj);
     const base = getShiftForDate(dateObj);
@@ -375,6 +427,20 @@ export default function MuseoOrari() {
     if (ferieSet.has(key)) return "ferie";
     if (shift.mondayRest) return "mondayRest";
     return shift.type;
+  }
+
+  // ─── SCHERMATA DI CARICAMENTO ────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div style={{ fontFamily: "'Georgia','Times New Roman',serif" }}
+        className="min-h-screen bg-stone-100 flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 border-2 border-stone-300 border-t-stone-600 rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-stone-500">Caricamento dati…</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -439,7 +505,7 @@ export default function MuseoOrari() {
             <div className="flex items-center gap-3">
               <div className="flex gap-3 text-right">
                 {monthOffset === 0 && <div className="text-center">
-                  <div className="text-xs text-black uppercase tracking-wide">Questo mese</div>
+                  <div className="text-xs uppercase tracking-wide">Questo mese</div>
                   <div className={`text-base font-bold font-mono ${currentMonthOvertimeMinutes > 0 ? "text-red-600" : "text-stone-400"}`}>
                     {formatHM(currentMonthOvertimeMinutes)}
                   </div>
@@ -487,12 +553,38 @@ export default function MuseoOrari() {
                     </div>
                   );
                 })}
+                <div className="px-5 py-3">
+                  <button
+                    type="button"
+                    onClick={handleClearAllOvertime}
+                    className="w-full text-xs font-semibold py-2 rounded-xl border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-400 transition-colors">
+                    Annulla tutti gli straordinari
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="px-5 py-4 text-xs text-stone-400 italic">
-                Nessuno straordinario registrato
+                Nessuno straordinario registrato.
               </div>
             )
+          )}
+        </div>
+
+        {/*BARRA FERIE*/}
+        <div className="bg-white rounded-2xl border-2 border-emerald-200 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 bg-emerald-50">
+            <h2 className="text-sm font-bold text-emerald-800 uppercase tracking-wide">🌴 Ferie</h2>
+            <div className="text-base font-bold font-mono text-emerald-600">{ferieSet.size > 0 ? `${ferieSet.size} giorn${ferieSet.size === 1 ? "o" : "i"}` : <span className="text-stone-400 font-normal text-xs">nessuna</span>}</div>
+          </div>
+          {ferieSet.size > 0 && (
+            <div className="px-5 py-3">
+              <button
+                type="button"
+                onClick={handleClearAllFerie}
+                className="w-full text-xs font-semibold py-2 rounded-xl border border-emerald-200 text-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-400 transition-colors">
+                Annulla tutte le ferie
+              </button>
+            </div>
           )}
         </div>
 
@@ -546,12 +638,10 @@ export default function MuseoOrari() {
               <button type="button" onClick={() => setMonthOffset(o => o + 1)}
                 className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-stone-100 text-stone-500 text-xl">›</button>
 
-              {/* Overlay picker */}
               {pickerOpen && (
                 <div className="fixed inset-0 z-40" onClick={() => setPickerOpen(false)} />
               )}
 
-              {/* Popup picker */}
               {pickerOpen && (
                 <div className="absolute top-full left-1/2 z-50 mt-1 bg-white border border-stone-200 rounded-2xl shadow-2xl overflow-hidden"
                   style={{ transform: "translateX(-50%)", width: "clamp(280px,90vw,340px)" }}>
@@ -647,9 +737,7 @@ export default function MuseoOrari() {
                           ) : (
                             <div className={`text-[10px] font-mono leading-snug ${m.text}`}>
                               <div>{base.start}</div>
-                              <div>
-                                {base.end}
-                              </div>
+                              <div>{base.end}</div>
                             </div>
                           )}
                         </div>
@@ -719,7 +807,6 @@ export default function MuseoOrari() {
                           : s.type !== "riposo" || (hasOT && overtime[key]?.start)
                             ? <span className={`font-mono ${hasOT ? "text-red-600 font-bold" : ""}`}>
                               {eff.start} - {eff.end}
-                              {!hasOT && s.type === "diurno" && s.end === "18:00" ? "" : ""}
                             </span>
                             : "Riposo"}
                       </div>
