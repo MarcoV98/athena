@@ -439,7 +439,7 @@ export default function MuseoOrari() {
             <div className="flex items-center gap-3">
               <div className="flex gap-3 text-right">
                 {monthOffset === 0 && <div className="text-center">
-                  <div className="text-xs uppercase tracking-wide">Questo mese</div>
+                  <div className="text-xs text-black uppercase tracking-wide">Questo mese</div>
                   <div className={`text-base font-bold font-mono ${currentMonthOvertimeMinutes > 0 ? "text-red-600" : "text-stone-400"}`}>
                     {formatHM(currentMonthOvertimeMinutes)}
                   </div>
@@ -490,7 +490,7 @@ export default function MuseoOrari() {
               </div>
             ) : (
               <div className="px-5 py-4 text-xs text-stone-400 italic">
-                Nessuno straordinario registrato. Clicca su un giorno nel calendario per aggiungerne uno.
+                Nessuno straordinario registrato
               </div>
             )
           )}
